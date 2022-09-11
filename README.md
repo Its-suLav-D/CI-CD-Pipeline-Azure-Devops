@@ -1,5 +1,6 @@
 # Overview
 
+[![Python Application test with Github Actions](https://github.com/Its-suLav-D/CI-CD-Pipeline-Azure-Devops/actions/workflows/main.yml/badge.svg)](https://github.com/Its-suLav-D/CI-CD-Pipeline-Azure-Devops/actions/workflows/main.yml)
 <TODO: complete this with an overview of your project>
 
 ## Project Plan
