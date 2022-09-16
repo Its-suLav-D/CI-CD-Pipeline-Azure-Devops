@@ -4,60 +4,93 @@
 
 name: Build and deploy Python app to Azure Web App - flaskml-sulav-predict
 
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
+trigger:
+  branches:
+    include:
+      - master 
+  paths:
+    include:
+      - 'CI-CD-Pipeline-Azure-Devops/*'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+variables:
+  azureServiceConnectionID: 'd112c25c-e152-47cb-96ff-8c1dc4d24ab8'
 
+  webAppName: 'flaskml-sulav-predict'
+
+  vmImageName: 'ubuntu-latest'
+
+  projectRoot: $(System.DefaultWorkingDirectory)
+  
+  pythonVersion: 3.9
+
+  environmentName: 'flasml-sulav-predict'
+
+  workspaceDirL: 'CI-CD-Pipeline-Azure-Devops' 
+
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: BuildJob
+    pool:
+      vmImage: $(vmImageName)
     steps:
-      - uses: actions/checkout@v2
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+      displayName: 'Use Python $(pythonVersion)'
 
-      - name: Set up Python version
-        uses: actions/setup-python@v1
-        with:
-          python-version: '3.7'
+    - script: |
+        pwd
+        ls -la
+      workingDirectory: $(projectRoot)/$(workspaceDir)
+      displayName: "Verify build environment"
+    
+    - script: |
+        python -m venv venv
+        source venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install setup
+        pip install -r requirements.txt
+      workingDirectory: $(projectRoot)/$(workspaceDir)
+      displayName: "Install requirements"
+    - task: ArchiveFiles@2
+      displayName: 'Archive files'
+      inputs:
+        rootFolderOrFile: '$(projectRoot)/$(workspaceDir)'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+        replaceExistingArchive: true
 
-      - name: Create and start virtual environment
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
-      
-      - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v2
-        with:
-          name: python-app
-          path: |
-            . 
-            !venv/
+    - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+      displayName: 'Upload package'
+      artifact: drop
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v2
-        with:
-          name: python-app
-          path: .
+- stage: Deploy
+  displayName: 'Deploy Web App CD'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeploymentJob
+    pool:
+      vmImage: $(vmImageName)
+    environment: $(environmentName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
           
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v2
-        id: deploy-to-webapp
-        with:
-          app-name: 'flaskml-sulav-predict'
-          slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D62B5FC8F36E4033A09E88F92261B25C }}
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+            displayName: 'Use Python version'
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy Azure Web App : flaskml-sulav-predict'
+            inputs:
+              azureSubscription: $(azureServiceConnectionId)
+              appName: $(webAppName)
+              package: $(Pipeline.Workspace)/drop/$(Build.BuildId).zip
