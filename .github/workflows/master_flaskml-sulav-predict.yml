@@ -13,7 +13,7 @@ trigger:
       - 'CI-CD-Pipeline-Azure-Devops/*'
 
 variables:
-  azureServiceConnectionID: 'd112c25c-e152-47cb-96ff-8c1dc4d24ab8'
+  azureServiceConnectionID: 'd38879c0-1684-4971-ba15-70aed7420635'
 
   webAppName: 'flaskml-sulav-predict'
 
